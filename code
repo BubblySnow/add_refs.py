@@ -1,0 +1,54 @@
+from collections import defaultdict, OrderedDict
+import pywikibot
+import json
+import sys
+site = pywikibot.Site('wikidata', 'wikidata')
+repo = site.data_repository()
+site.login()
+with open(sys.argv[1], 'r') as f:
+    for line in f:
+        try:
+            data = json.loads(line.strip('\n'))
+        except KeyboardInterrupt:
+            sys.exit()
+        except:
+            continue
+        item = pywikibot.ItemPage(repo, data['itemId'])
+        try:
+            item.get()
+        except KeyboardInterrupt:
+            sys.exit()
+        except:
+            continue
+        try:
+            claims = item.claims[data['statement']['pid']]
+        except:
+            continue
+        for claim in claims:
+            if claim.getSources():
+                continue
+            if data['statement']['value'].get('entity-type') == 'item' and isinstance(claim.getTarget(), pywikibot.ItemPage):
+                pass
+            else:
+                print('kill me')
+                continue
+            if data['statement']['value']['id'] != claim.getTarget().getID():
+                print(data['statement']['value']['id'], claim.getTarget().getID())
+                continue
+            break
+        else:
+            continue
+        source_claims = []
+        for pid in data['reference']['referenceMetadata']:
+            if pid == 'dateRetrieved':
+                source_claim = pywikibot.Claim(site, 'P813')
+                value = data['reference']['referenceMetadata'][pid]
+                value = value.split(' ')[0].split('-')
+                value = [int(i) for i in value]
+                value = pywikibot.WbTime(*value)
+            else:
+                source_claim = pywikibot.Claim(site, pid)
+                value = data['reference']['referenceMetadata'][pid]
+            source_claim.setTarget(value)
+            source_claims.append(source_claim)
+        claim.addSources(source_claims, summary='Bot: Add reference based on [[Wikidata:Automated finding references input]] - October 2020 dump')
